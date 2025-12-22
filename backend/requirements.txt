@@ -1,0 +1,15 @@
+# Python Dependencies for Dynamic Island Backend
+
+# WebSocket server
+websockets
+
+# System monitoring
+psutil
+
+# Optional: Media detection (future enhancement)
+pycaw; sys_platform == 'win32'  # Windows audio control
+
+# Cross-platform system APIs
+pyobjc-framework-Cocoa; sys_platform == 'darwin'  # macOS only
+pywin32; sys_platform == 'win32'  # Windows only
+

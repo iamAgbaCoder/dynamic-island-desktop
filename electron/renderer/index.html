@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamic Island</title>
+  
+  <!-- Tailwind CSS via CDN (for development) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="overflow-hidden">
+  <!-- 
+    DYNAMIC ISLAND CONTAINER
+    This is the main floating pill
+  -->
+  <div id="island" class="island island-collapsed">
+    <!-- Collapsed State Content -->
+    <div id="collapsed-view" class="collapsed-view">
+      <div class="flex items-center gap-3 px-4">
+        <!-- Icon indicator -->
+        <div class="icon-indicator">
+          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <circle cx="10" cy="10" r="3" class="animate-pulse"/>
+          </svg>
+        </div>
+        
+        <!-- Status text -->
+        <span id="status-text" class="text-white text-sm font-medium">
+          Ready
+        </span>
+        
+        <!-- Battery indicator -->
+        <div id="battery" class="ml-auto text-white text-xs">
+          <span id="battery-percent">--</span>%
+        </div>
+      </div>
+    </div>
+
+    <!-- Expanded State Content (hidden by default) -->
+    <div id="expanded-view" class="expanded-view hidden">
+      <div class="p-6 space-y-4">
+        <!-- Media Player Section -->
+        <div id="media-section" class="media-section hidden">
+          <div class="flex items-center gap-4">
+            <!-- Album art placeholder -->
+            <div class="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center">
+              <svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
+              </svg>
+            </div>
+            
+            <!-- Song info -->
+            <div class="flex-1 min-w-0">
+              <p id="song-title" class="text-white font-semibold text-sm truncate">
+                No media playing
+              </p>
+              <p id="song-artist" class="text-gray-400 text-xs truncate">
+                --
+              </p>
+            </div>
+            
+            <!-- Play/Pause button -->
+            <button id="play-pause-btn" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+              </svg>
+            </button>
+          </div>
+          
+          <!-- Progress bar -->
+          <div class="mt-3">
+            <div class="h-1 bg-gray-700 rounded-full overflow-hidden">
+              <div id="progress-bar" class="h-full bg-white transition-all duration-300" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Info Section -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="stat-card">
+            <div class="text-gray-400 text-xs">CPU</div>
+            <div id="cpu-usage" class="text-white text-lg font-semibold">--</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-gray-400 text-xs">RAM</div>
+            <div id="ram-usage" class="text-white text-lg font-semibold">--</div>
+          </div>
+        </div>
+
+        <!-- Network Status -->
+        <div class="flex items-center gap-2 text-sm">
+          <div id="network-indicator" class="w-2 h-2 rounded-full bg-green-500"></div>
+          <span id="network-status" class="text-gray-300">Connected</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript -->
+  <script src="app.js"></script>
+</body>
+</html>
