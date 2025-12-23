@@ -14,8 +14,12 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Python lib folders only
+**/python*/lib/
 lib64/
+
+# Allow frontend lib folder
+!electron/renderer/lib/
 parts/
 sdist/
 var/
@@ -283,6 +287,9 @@ uploads/
 .vscode/
 !.vscode/settings.json
 !.vscode/extensions.json
+.agent/
+pnpm-workspace.yaml
+pnpm-lock.yaml
 
 ############################################
 # OS FILES

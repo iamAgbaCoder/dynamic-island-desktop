@@ -5,101 +5,296 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dynamic Island</title>
   
-  <!-- Tailwind CSS via CDN (for development) -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SF Pro Font (Apple System Font) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Custom styles -->
+  <!-- GSAP Animation Library -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  
+  <!-- Zustand State Management -->
+  <script src="https://cdn.jsdelivr.net/npm/zustand@4.5.0/index.umd.js"></script>
+  
+  <!-- Custom Styles -->
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="overflow-hidden">
+<body>
   <!-- 
+    ═══════════════════════════════════════════════════════════
     DYNAMIC ISLAND CONTAINER
-    This is the main floating pill
+    The main morphing pill that contains all UI states
+    ═══════════════════════════════════════════════════════════
   -->
-  <div id="island" class="island island-collapsed">
-    <!-- Collapsed State Content -->
-    <div id="collapsed-view" class="collapsed-view">
-      <div class="flex items-center gap-3 px-4">
-        <!-- Icon indicator -->
-        <div class="icon-indicator">
-          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <circle cx="10" cy="10" r="3" class="animate-pulse"/>
-          </svg>
+  <div id="island" class="island" data-state="collapsed">
+    
+    <!-- ═══════════════════════════════════════════════════════
+         COLLAPSED VIEW (Floating Navbar Mode)
+         ═══════════════════════════════════════════════════════ -->
+    <div id="collapsed-view" class="view collapsed-view">
+      <div class="collapsed-content">
+        
+        <!-- Left Section: OS & Active App -->
+        <div class="nav-section-left">
+          <div id="os-logo" class="os-logo" title="System Menu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z"/>
+            </svg>
+          </div>
+          <div id="active-app-name" class="active-app-name">Finder</div>
+          
+          <!-- Recent Apps Placeholder Icons -->
+          <div class="recent-apps">
+            <div class="recent-app-dot"></div>
+            <div class="recent-app-dot"></div>
+          </div>
+        </div>
+
+        <!-- Center Section: Live Activity / Media Wave -->
+        <div id="live-indicator" class="live-indicator">
+          <div id="status-text" class="status-text hidden">Dynamic Island</div>
+          <div class="media-wave" id="media-wave">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
         </div>
         
-        <!-- Status text -->
-        <span id="status-text" class="text-white text-sm font-medium">
-          Ready
-        </span>
+        <!-- Right Section: System Toggles & Clock -->
+        <div class="nav-section-right">
+          <!-- Control Panel Icon -->
+          <div id="control-panel-btn" class="status-icon" title="Control Center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+          </div>
+
+          <!-- WiFi Icon -->
+          <div id="wifi-btn" class="status-icon" title="WiFi">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+              <line x1="12" y1="20" x2="12.01" y2="20"></line>
+            </svg>
+          </div>
+          
+          <!-- Bluetooth Icon -->
+          <div id="bluetooth-btn" class="status-icon" title="Bluetooth">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"></polyline>
+            </svg>
+          </div>
+
+          <!-- Battery Indicator -->
+          <div id="battery-indicator" class="status-icon battery-icon" title="Battery">
+            <span id="battery-percent" class="battery-percent">--</span>
+            <svg id="battery-svg" width="20" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="1" y="6" width="18" height="12" rx="2" ry="2"></rect>
+              <rect id="battery-fill" x="2" y="7" width="12" height="10" rx="1" ry="1" fill="currentColor"></rect>
+              <line x1="23" y1="13" x2="23" y2="11"></line>
+            </svg>
+          </div>
+          
+          <!-- Clock -->
+          <div id="clock-container" class="status-icon clock-icon">
+            <span id="date-display" class="date-display">---</span>
+            <span id="time-display" class="time-display">--:--</span>
+          </div>
+        </div>
         
-        <!-- Battery indicator -->
-        <div id="battery" class="ml-auto text-white text-xs">
-          <span id="battery-percent">--</span>%
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         COMPONENT OVERLAYS (Modals)
+         ═══════════════════════════════════════════════════════ -->
+    <div id="component-overlays" class="component-overlays">
+      <div id="control-center-modal" class="modal control-center hidden">
+        <div class="modal-header">Control Center</div>
+        <div class="control-grid">
+          <!-- Quick toggles -->
         </div>
       </div>
     </div>
 
-    <!-- Expanded State Content (hidden by default) -->
-    <div id="expanded-view" class="expanded-view hidden">
-      <div class="p-6 space-y-4">
-        <!-- Media Player Section -->
-        <div id="media-section" class="media-section hidden">
-          <div class="flex items-center gap-4">
-            <!-- Album art placeholder -->
-            <div class="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center">
-              <svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
+    <!-- ═══════════════════════════════════════════════════════
+         EXPANDED VIEW
+         Full interface with live activities and widgets
+         ═══════════════════════════════════════════════════════ -->
+    <div id="expanded-view" class="view expanded-view hidden">
+      <div class="expanded-content">
+        
+        <!-- Header Section -->
+        <div class="expanded-header">
+          <div class="header-left">
+            <span id="greeting-text" class="greeting-text">Hello</span>
+          </div>
+          <div class="header-right">
+            <button id="settings-btn" class="icon-btn" title="Settings">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24m-4.24 4.24l-4.24 4.24m15.66-8.66l-4.24-4.24m-4.24-4.24l-4.24-4.24"></path>
               </svg>
-            </div>
-            
-            <!-- Song info -->
-            <div class="flex-1 min-w-0">
-              <p id="song-title" class="text-white font-semibold text-sm truncate">
-                No media playing
-              </p>
-              <p id="song-artist" class="text-gray-400 text-xs truncate">
-                --
-              </p>
-            </div>
-            
-            <!-- Play/Pause button -->
-            <button id="play-pause-btn" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+            </button>
+            <button id="close-btn" class="icon-btn" title="Collapse">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
             </button>
           </div>
+        </div>
+
+        <!-- Live Activities Section -->
+        <div id="live-activities" class="live-activities">
           
-          <!-- Progress bar -->
-          <div class="mt-3">
-            <div class="h-1 bg-gray-700 rounded-full overflow-hidden">
-              <div id="progress-bar" class="h-full bg-white transition-all duration-300" style="width: 0%"></div>
+          <!-- Media Player -->
+          <div id="media-activity" class="activity media-activity hidden">
+            <div class="activity-content">
+              <div class="media-artwork">
+                <img id="media-artwork-img" src="" alt="Album Art" class="artwork-img">
+                <div class="artwork-placeholder">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="media-info">
+                <div class="media-title" id="media-title">No media playing</div>
+                <div class="media-artist" id="media-artist">--</div>
+              </div>
+              <div class="media-controls">
+                <button id="media-prev" class="control-btn">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+                  </svg>
+                </button>
+                <button id="media-play-pause" class="control-btn control-btn-primary">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </button>
+                <button id="media-next" class="control-btn">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="media-progress">
+                <div class="progress-bar">
+                  <div id="media-progress-fill" class="progress-fill"></div>
+                </div>
+                <div class="progress-time">
+                  <span id="media-current-time">0:00</span>
+                  <span id="media-duration">0:00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Timer Activity -->
+          <div id="timer-activity" class="activity timer-activity hidden">
+            <div class="activity-content">
+              <div class="timer-display">
+                <div class="timer-circle">
+                  <svg class="timer-svg" viewBox="0 0 100 100">
+                    <circle class="timer-bg" cx="50" cy="50" r="45"></circle>
+                    <circle id="timer-progress" class="timer-progress" cx="50" cy="50" r="45"></circle>
+                  </svg>
+                  <div class="timer-text" id="timer-text">00:00</div>
+                </div>
+              </div>
+              <button id="timer-pause" class="btn btn-secondary">Pause</button>
+            </div>
+          </div>
+
+          <!-- Bluetooth Activity -->
+          <div id="bluetooth-activity" class="activity bluetooth-activity hidden">
+            <div class="activity-content">
+              <div class="bluetooth-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"></polyline>
+                </svg>
+              </div>
+              <div class="bluetooth-info">
+                <div class="bluetooth-name" id="bluetooth-name">Device Name</div>
+                <div class="bluetooth-battery">
+                  <span id="bluetooth-battery-left">--</span>% • <span id="bluetooth-battery-right">--</span>%
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- System Stats Grid -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                <rect x="9" y="9" width="6" height="6"></rect>
+                <line x1="9" y1="1" x2="9" y2="4"></line>
+                <line x1="15" y1="1" x2="15" y2="4"></line>
+                <line x1="9" y1="20" x2="9" y2="23"></line>
+                <line x1="15" y1="20" x2="15" y2="23"></line>
+                <line x1="20" y1="9" x2="23" y2="9"></line>
+                <line x1="20" y1="15" x2="23" y2="15"></line>
+                <line x1="1" y1="9" x2="4" y2="9"></line>
+                <line x1="1" y1="15" x2="4" y2="15"></line>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">CPU</div>
+              <div id="cpu-value" class="stat-value">--</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 19v2"></path>
+                <path d="M10 19v2"></path>
+                <path d="M14 19v2"></path>
+                <path d="M18 19v2"></path>
+                <path d="M8 11V9"></path>
+                <path d="M12 11V9"></path>
+                <path d="M16 11V9"></path>
+                <rect x="2" y="11" width="20" height="8" rx="2"></rect>
+                <path d="M2 15h20"></path>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">RAM</div>
+              <div id="ram-value" class="stat-value">--</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" id="network-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                <line x1="12" y1="20" x2="12.01" y2="20"></line>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">Network</div>
+              <div id="network-value" class="stat-value">--</div>
             </div>
           </div>
         </div>
 
-        <!-- System Info Section -->
-        <div class="grid grid-cols-2 gap-3">
-          <div class="stat-card">
-            <div class="text-gray-400 text-xs">CPU</div>
-            <div id="cpu-usage" class="text-white text-lg font-semibold">--</div>
-          </div>
-          <div class="stat-card">
-            <div class="text-gray-400 text-xs">RAM</div>
-            <div id="ram-usage" class="text-white text-lg font-semibold">--</div>
-          </div>
+        <!-- Widgets Section (Future) -->
+        <div id="widgets-section" class="widgets-section hidden">
+          <!-- Calendar, Weather, Reminders will go here -->
         </div>
 
-        <!-- Network Status -->
-        <div class="flex items-center gap-2 text-sm">
-          <div id="network-indicator" class="w-2 h-2 rounded-full bg-green-500"></div>
-          <span id="network-status" class="text-gray-300">Connected</span>
-        </div>
       </div>
     </div>
+
   </div>
 
-  <!-- JavaScript -->
-  <script src="app.js"></script>
+  <!-- JavaScript Modules -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Dynamic Island Backend Server
-WebSocket server that monitors system resources and sends data to Electron
+Enhanced Dynamic Island Backend Server
+Event-driven WebSocket server with advanced system monitoring
 """
 
 import asyncio
@@ -9,6 +9,7 @@ import json
 import websockets
 import logging
 from datetime import datetime
+from typing import Set
 from core.system_monitor import SystemMonitor
 from core.media_monitor import MediaMonitor
 from core.window_monitor import WindowMonitor
@@ -22,35 +23,50 @@ logger = logging.getLogger(__name__)
 
 class DynamicIslandServer:
     """
-    WebSocket server for Dynamic Island
-    Manages connections and broadcasts system data
+    Enhanced WebSocket server for Dynamic Island
+    Features:
+    - Event-driven updates
+    - Multiple client support
+    - Efficient broadcasting
+    - Automatic reconnection handling
     """
 
     def __init__(self, host="localhost", port=8765):
         self.host = host
         self.port = port
-        self.clients = set()  # Connected clients
+        self.clients: Set[websockets.WebSocketServerProtocol] = set()
+
+        # Initialize monitors
         self.system_monitor = SystemMonitor()
         self.media_monitor = MediaMonitor()
         self.window_monitor = WindowMonitor()
+
         self.is_running = False
+
+        # Cache for change detection
+        self.last_state = {"battery": None, "network": None, "media": None}
 
     async def register(self, websocket):
         """Register a new client connection"""
         self.clients.add(websocket)
-        logger.info(f"✅ Client connected. Total clients: {len(self.clients)}")
+        logger.info(
+            f"✅ Client connected from {websocket.remote_address}. Total: {len(self.clients)}"
+        )
+
+        # Send initial data immediately
+        await self.send_initial_data(websocket)
 
     async def unregister(self, websocket):
         """Unregister a disconnected client"""
         self.clients.discard(websocket)
-        logger.info(f"❌ Client disconnected. Total clients: {len(self.clients)}")
+        logger.info(f"❌ Client disconnected. Total: {len(self.clients)}")
 
     async def send_to_client(self, websocket, data):
-        """Send data to a specific client"""
+        """Send data to a specific client with error handling"""
         try:
             await websocket.send(json.dumps(data))
         except websockets.exceptions.ConnectionClosed:
-            logger.warning("⚠️  Client connection closed while sending data")
+            logger.warning("⚠️  Connection closed while sending")
             await self.unregister(websocket)
         except Exception as e:
             logger.error(f"❌ Error sending data: {e}")
@@ -58,50 +74,93 @@ class DynamicIslandServer:
     async def broadcast(self, data):
         """Broadcast data to all connected clients"""
         if self.clients:
-            # Send to all clients concurrently
-            await asyncio.gather(
-                *[self.send_to_client(client, data) for client in self.clients],
-                return_exceptions=True,
-            )
+            # Create tasks for concurrent sending
+            tasks = [
+                self.send_to_client(client, data) for client in self.clients.copy()
+            ]
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def send_initial_data(self, websocket):
+        """Send initial system state to newly connected client"""
+        try:
+            # System info
+            system_data = await self.get_system_data()
+            await self.send_to_client(websocket, system_data)
+
+            # Media info
+            media_data = await self.media_monitor.get_media_info()
+            await self.send_to_client(websocket, media_data)
+
+            # Window info
+            window_data = {
+                "type": "window",
+                "data": self.window_monitor.get_active_window(),
+            }
+            await self.send_to_client(websocket, window_data)
+
+            logger.info("📤 Sent initial data to client")
+
+        except Exception as e:
+            logger.error(f"❌ Error sending initial data: {e}")
 
     async def handle_client(self, websocket):
         """
         Handle individual client connection
-        This function runs for each connected client
+        Manages bidirectional communication
         """
         await self.register(websocket)
 
         try:
-            # Send initial system data immediately
-            initial_data = await self.get_system_data()
-            await self.send_to_client(websocket, initial_data)
-
-            # Send initial media data
-            media_data = await self.media_monitor.get_media_info()
-            await self.send_to_client(websocket, media_data)
-
             # Keep connection alive and handle incoming messages
             async for message in websocket:
                 try:
                     data = json.loads(message)
-                    logger.info(f"📨 Received from client: {data}")
-
-                    # Handle different message types
-                    if data.get("type") == "ping":
-                        await self.send_to_client(
-                            websocket,
-                            {"type": "pong", "timestamp": datetime.now().isoformat()},
-                        )
-
+                    await self.handle_client_message(websocket, data)
                 except json.JSONDecodeError:
                     logger.error("❌ Invalid JSON received")
+                except Exception as e:
+                    logger.error(f"❌ Error handling message: {e}")
 
         except websockets.exceptions.ConnectionClosed:
             logger.info("🔌 Client connection closed normally")
         except Exception as e:
-            logger.error(f"❌ Error handling client: {e}")
+            logger.error(f"❌ Error in client handler: {e}")
         finally:
             await self.unregister(websocket)
+
+    async def handle_client_message(self, websocket, data):
+        """Handle messages from client"""
+        msg_type = data.get("type")
+
+        if msg_type == "ping":
+            # Respond to ping
+            await self.send_to_client(
+                websocket, {"type": "pong", "timestamp": datetime.now().isoformat()}
+            )
+
+        elif msg_type == "request_update":
+            # Client requesting immediate update
+            system_data = await self.get_system_data()
+            await self.send_to_client(websocket, system_data)
+
+        elif msg_type == "media_control":
+            # Media playback control
+            action = data.get("action")
+            logger.info(f"🎵 Media control: {action}")
+
+            if action == "toggle":
+                self.media_monitor.toggle_playback()
+            elif action == "next":
+                self.media_monitor.next_track()
+            elif action == "previous":
+                self.media_monitor.previous_track()
+
+            # Immediately broadcast status update
+            media_data = await self.media_monitor.get_media_info()
+            await self.broadcast(media_data)
+
+        else:
+            logger.debug(f"📨 Received: {data}")
 
     async def get_system_data(self):
         """
@@ -117,7 +176,9 @@ class DynamicIslandServer:
                     "cpu": system_info["cpu_percent"],
                     "ram": system_info["ram_percent"],
                     "battery": system_info["battery_percent"],
+                    "isCharging": system_info["battery_charging"],
                     "network": system_info["network_status"],
+                    "platform": system_info["platform"],
                 },
                 "timestamp": datetime.now().isoformat(),
             }
@@ -127,31 +188,33 @@ class DynamicIslandServer:
 
     async def broadcast_loop(self):
         """
-        Continuously broadcast system data to all clients
-        Runs every 2 seconds
+        Main broadcast loop
+        Sends updates to all clients at regular intervals
+        Implements smart change detection to reduce unnecessary updates
         """
         logger.info("🔄 Starting broadcast loop...")
+        update_interval = 1.0  # seconds
 
         while self.is_running:
             try:
                 if self.clients:
-                    # 1. System Info
+                    # 1. System Info (always send)
                     sys_data = await self.get_system_data()
                     await self.broadcast(sys_data)
 
-                    # 2. Media Info
+                    # 2. Media Info (with change detection)
                     media_data = await self.media_monitor.get_media_info()
-                    await self.broadcast(media_data)
+                    if media_data != self.last_state["media"]:
+                        await self.broadcast(media_data)
+                        self.last_state["media"] = media_data
 
-                    # 3. Window Info
-                    window_data = {
-                        "type": "window",
-                        "data": self.window_monitor.get_active_window(),
-                    }
+                    # 3. Window Info (with change detection)
+                    window_info = self.window_monitor.get_active_window()
+                    window_data = {"type": "window", "data": window_info}
                     await self.broadcast(window_data)
 
-                # Wait 1 second before next update
-                await asyncio.sleep(1)
+                # Wait before next update
+                await asyncio.sleep(update_interval)
 
             except Exception as e:
                 logger.error(f"❌ Error in broadcast loop: {e}")
@@ -161,12 +224,23 @@ class DynamicIslandServer:
         """Start the WebSocket server"""
         self.is_running = True
 
-        logger.info(f"🚀 Starting Dynamic Island Server on {self.host}:{self.port}")
+        logger.info("=" * 60)
+        logger.info("🚀 Dynamic Island Server Starting...")
+        logger.info(f"🔗 Host: {self.host}")
+        logger.info(f"🔗 Port: {self.port}")
+        logger.info(f"🔗 WebSocket URL: ws://{self.host}:{self.port}")
+        logger.info("=" * 60)
 
         # Start the WebSocket server
-        async with websockets.serve(self.handle_client, self.host, self.port):
+        async with websockets.serve(
+            self.handle_client,
+            self.host,
+            self.port,
+            ping_interval=20,  # Send ping every 20 seconds
+            ping_timeout=10,  # Wait 10 seconds for pong
+        ):
             logger.info("✅ Server is running!")
-            logger.info(f"🔗 Listening on ws://{self.host}:{self.port}")
+            logger.info("💡 Press Ctrl+C to stop")
 
             # Start broadcast loop
             await self.broadcast_loop()

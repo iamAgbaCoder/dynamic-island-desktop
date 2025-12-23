@@ -1,54 +1,53 @@
 // electron/preload.js
-// This script runs BEFORE the renderer process loads
-// It acts as a secure bridge between Main and Renderer
+// Secure bridge between main and renderer processes
 
 const { contextBridge, ipcRenderer } = require('electron');
 
 /**
  * Expose safe APIs to the renderer process
- * 
- * The renderer can access these via window.electron
- * Example: window.electron.sendMessage('hello')
+ * This is the ONLY way renderer can communicate with main process
  */
 contextBridge.exposeInMainWorld('electron', {
-  // Platform info
-  platform: process.platform,
-  
-  // Send messages to main process
-  sendMessage: (channel, data) => {
-    // Whitelist of allowed channels for security
-    const validChannels = ['resize-window', 'quit-app', 'minimize'];
-    if (validChannels.includes(channel)) {
-      ipcRenderer.send(channel, data);
+  // Platform information
+  platform: {
+    async getInfo() {
+      return await ipcRenderer.invoke('platform:info');
+    },
+    async getTheme() {
+      return await ipcRenderer.invoke('theme:get');
     }
   },
-  
-  // Receive messages from main process
-  onMessage: (channel, callback) => {
-    const validChannels = ['system-data', 'media-update', 'notification'];
-    if (validChannels.includes(channel)) {
-      // Remove the event parameter for security
-      ipcRenderer.on(channel, (event, ...args) => callback(...args));
+
+  // Window controls
+  window: {
+    async resize(width, height, animated = true) {
+      return await ipcRenderer.invoke('island:resize', { width, height, animated });
+    },
+    async setDraggable(draggable) {
+      return await ipcRenderer.invoke('window:setDraggable', draggable);
+    },
+    async minimize() {
+      return await ipcRenderer.invoke('window:minimize');
+    },
+    async restore() {
+      return await ipcRenderer.invoke('window:restore');
     }
   },
-  
-  // Remove listener
-  removeListener: (channel, callback) => {
-    ipcRenderer.removeListener(channel, callback);
+
+  // Permissions
+  permissions: {
+    async request(type) {
+      return await ipcRenderer.invoke('permissions:request', type);
+    }
+  },
+
+  // App controls
+  app: {
+    async quit() {
+      return await ipcRenderer.invoke('app:quit');
+    }
   }
 });
 
-/**
- * Expose WebSocket API for Python backend communication
- * This will connect to our Python server
- */
-contextBridge.exposeInMainWorld('pythonAPI', {
-  // These will be used by app.js to connect to Python backend
-  connect: (url) => {
-    // Renderer will handle WebSocket connection
-    // We just expose the capability here
-    return { url };
-  }
-});
-
-console.log('✅ Preload script loaded');
+// Log when preload is ready
+console.log('🔒 Preload script loaded - Secure bridge established');
