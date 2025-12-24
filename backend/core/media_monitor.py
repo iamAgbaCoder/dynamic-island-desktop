@@ -55,7 +55,8 @@ class MediaMonitor:
         ]
         self.current_start_time = time.time()
         self.is_playing = True
-        self.is_active = True  # Whether media player is active
+        self.is_active = True
+        self.last_track_info = None
 
         # Initialize platform-specific monitoring
         self._init_platform_monitor()
@@ -111,12 +112,24 @@ class MediaMonitor:
             self.is_mock_mode = True
 
     async def get_media_info(self):
-        """
-        Get current media playback information
-        Returns dict with media metadata and playback state
-        """
+        """Get current media information with logging"""
         if self.is_mock_mode:
-            return await self._get_mock_media_info()
+            data = await self._get_mock_media_info()
+        elif self.platform == "Windows":
+            data = await self._get_windows_media_info()
+        elif self.platform == "Darwin":
+            data = await self._get_macos_media_info()
+        else:
+            data = await self._get_linux_media_info()
+
+        # Log change
+        if data.get("isActive"):
+            track_key = f"{data.get('title')}-{data.get('artist')}"
+            if track_key != self.last_track_info:
+                logger.info(
+                    f"🎵 Now Playing: {data.get('title')} by {data.get('artist')}"
+                )
+                self.last_track_info = track_key
         else:
             # Future: Get real media info based on platform
             if self.platform == "Windows":
@@ -166,8 +179,55 @@ class MediaMonitor:
         }
 
     async def _get_windows_media_info(self):
-        """Get media info from Windows using pycaw fallback"""
+        """Get media info from Windows using winsdk or pycaw fallback"""
         try:
+            # Attempt to use WinSDK for real metadata if available
+            try:
+                from winsdk.windows.media.control import (
+                    GlobalSystemMediaTransportControlsSessionManager as Manager,
+                )
+
+                manager = await Manager.request_async()
+                session = manager.get_current_session()
+
+                if session:
+                    info = await session.try_get_media_properties_async()
+                    playback = session.get_playback_info()
+                    timeline = session.get_timeline_properties()
+
+                    # 4 = Playing, 5 = Paused
+                    is_playing = playback.playback_status == 4
+
+                    return {
+                        "type": "media",
+                        "data": {
+                            "isActive": True,
+                            "isPlaying": is_playing,
+                            "title": info.title or "Unknown Track",
+                            "artist": info.artist or "Unknown Artist",
+                            "album": info.album_title or "",
+                            "progress": (
+                                timeline.position.total_seconds() if timeline else 0
+                            ),
+                            "duration": (
+                                timeline.end_time.total_seconds() if timeline else 100
+                            ),
+                            "progressPercent": (
+                                (
+                                    timeline.position.total_seconds()
+                                    / timeline.end_time.total_seconds()
+                                    * 100
+                                )
+                                if timeline and timeline.end_time.total_seconds() > 0
+                                else 0
+                            ),
+                            "artworkUrl": None,
+                        },
+                    }
+            except (ImportError, Exception) as e:
+                logger.debug(f"WinSDK not available or failed: {e}")
+
+            # Fallback to Pycaw for process info
             sessions = self.AudioUtilities.GetAllSessions()
             active_session = None
 
@@ -177,32 +237,32 @@ class MediaMonitor:
                     break
 
             if not active_session:
-                # Fallback to mock if nothing is playing
-                return await self._get_mock_media_info()
+                return {"type": "media", "data": {"isActive": False}}
 
-            process_name = "Unknown App"
+            process_name = "System Audio"
             if active_session.Process:
                 process_name = (
                     active_session.Process.name().replace(".exe", "").capitalize()
                 )
 
+            # Simple fallback for process-only sessions
             return {
                 "type": "media",
                 "data": {
                     "isActive": True,
                     "isPlaying": True,
-                    "title": "System Audio",
+                    "title": "Playing",
                     "artist": process_name,
-                    "album": "Windows Media",
+                    "album": "",
                     "progress": 0,
                     "duration": 100,
-                    "progressPercent": 50,
+                    "progressPercent": 0,
                     "artworkUrl": None,
                 },
             }
         except Exception as e:
             logger.error(f"Error getting Windows media info: {e}")
-            return await self._get_mock_media_info()
+            return {"type": "media", "data": {"isActive": False}}
 
     async def _get_macos_media_info(self):
         """Get media info from macOS MediaRemote"""
@@ -214,27 +274,56 @@ class MediaMonitor:
         # Future implementation
         pass
 
-    def toggle_playback(self):
-        """Toggle play/pause state"""
+    async def toggle_playback(self):
+        """Toggle play/pause state using WinSDK if possible"""
+        try:
+            from winsdk.windows.media.control import (
+                GlobalSystemMediaTransportControlsSessionManager as Manager,
+            )
+
+            manager = await Manager.request_async()
+            session = manager.get_current_session()
+            if session:
+                await session.try_toggle_play_pause_async()
+                logger.info("🎵 Toggle playback sent to system")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to toggle playback via WinSDK: {e}")
+
         self.is_playing = not self.is_playing
-        logger.info(f"🎵 Playback {'resumed' if self.is_playing else 'paused'}")
         return self.is_playing
 
-    def next_track(self):
+    async def next_track(self):
         """Skip to next track"""
-        if self.is_mock_mode:
-            self.track_index = (self.track_index + 1) % len(self.mock_tracks)
-            self.current_start_time = time.time()
-            track = self.mock_tracks[self.track_index]
-            logger.info(f"⏭️  Next track: {track['title']}")
+        try:
+            from winsdk.windows.media.control import (
+                GlobalSystemMediaTransportControlsSessionManager as Manager,
+            )
 
-    def previous_track(self):
+            manager = await Manager.request_async()
+            session = manager.get_current_session()
+            if session:
+                await session.try_skip_next_async()
+                logger.info("⏭️  Next track sent to system")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to skip next via WinSDK: {e}")
+
+    async def previous_track(self):
         """Go to previous track"""
-        if self.is_mock_mode:
-            self.track_index = (self.track_index - 1) % len(self.mock_tracks)
-            self.current_start_time = time.time()
-            track = self.mock_tracks[self.track_index]
-            logger.info(f"⏮️  Previous track: {track['title']}")
+        try:
+            from winsdk.windows.media.control import (
+                GlobalSystemMediaTransportControlsSessionManager as Manager,
+            )
+
+            manager = await Manager.request_async()
+            session = manager.get_current_session()
+            if session:
+                await session.try_skip_previous_async()
+                logger.info("⏮️  Previous track sent to system")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to skip previous via WinSDK: {e}")
 
 
 # Example usage

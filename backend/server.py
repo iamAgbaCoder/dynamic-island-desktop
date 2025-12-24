@@ -138,27 +138,23 @@ class DynamicIslandServer:
                 websocket, {"type": "pong", "timestamp": datetime.now().isoformat()}
             )
 
-        elif msg_type == "request_update":
-            # Client requesting immediate update
-            system_data = await self.get_system_data()
-            await self.send_to_client(websocket, system_data)
-
         elif msg_type == "media_control":
-            # Media playback control
             action = data.get("action")
             logger.info(f"🎵 Media control: {action}")
-
             if action == "toggle":
-                self.media_monitor.toggle_playback()
+                await self.media_monitor.toggle_playback()
             elif action == "next":
-                self.media_monitor.next_track()
+                await self.media_monitor.next_track()
             elif action == "previous":
-                self.media_monitor.previous_track()
-
-            # Immediately broadcast status update
+                await self.media_monitor.previous_track()
             media_data = await self.media_monitor.get_media_info()
             await self.broadcast(media_data)
 
+        elif msg_type == "system_control":
+            action = data.get("action")
+            if action == "volume":
+                value = data.get("value")
+                self.system_monitor.set_volume(value)
         else:
             logger.debug(f"📨 Received: {data}")
 

@@ -52,9 +52,10 @@
 
         <!-- Center Section: Live Activity / Media Wave -->
         <div id="live-indicator" class="live-indicator">
-          <div id="status-text" class="status-text hidden">Dynamic Island</div>
-          <div class="media-wave" id="media-wave">
-            <span></span><span></span><span></span><span></span><span></span>
+          <div id="status-text" class="status-text">Dynamic Island</div>
+          <div class="activity-visuals">
+            <div id="media-disco" class="disco-circle hidden"></div>
+            <div id="status-dot" class="status-dot"></div>
           </div>
         </div>
         
@@ -86,13 +87,22 @@
           </div>
 
           <!-- Battery Indicator -->
-          <div id="battery-indicator" class="status-icon battery-icon" title="Battery">
+          <div id="battery-btn" class="status-icon battery-icon" title="Battery">
             <span id="battery-percent" class="battery-percent">--</span>
             <svg id="battery-svg" width="20" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="1" y="6" width="18" height="12" rx="2" ry="2"></rect>
               <rect id="battery-fill" x="2" y="7" width="12" height="10" rx="1" ry="1" fill="currentColor"></rect>
               <line x1="23" y1="13" x2="23" y2="11"></line>
             </svg>
+          </div>
+
+          <!-- Weather Indicator -->
+          <div id="weather-btn" class="status-icon weather-icon" title="Weather">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17.5 19a3.5 3.5 0 0 0 0-7h-1.5a7 7 0 1 0-11.75 5"></path>
+              <path d="M12 9v2m0 4v2m4-4h2m-12 0H4"></path>
+            </svg>
+            <span id="weather-temp" class="weather-temp">22°</span>
           </div>
           
           <!-- Clock -->
@@ -109,10 +119,88 @@
          COMPONENT OVERLAYS (Modals)
          ═══════════════════════════════════════════════════════ -->
     <div id="component-overlays" class="component-overlays">
+      <!-- Control Center Modal -->
       <div id="control-center-modal" class="modal control-center hidden">
         <div class="modal-header">Control Center</div>
         <div class="control-grid">
-          <!-- Quick toggles -->
+          <div class="control-item active" id="toggle-wifi">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+            <span class="control-label">Wi-Fi</span>
+          </div>
+          <div class="control-item active" id="toggle-bt">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"></polyline></svg>
+            <span class="control-label">Bluetooth</span>
+          </div>
+          <div class="control-item" id="toggle-dnd">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+            <span class="control-label">Night Shift</span>
+          </div>
+          <div class="control-item" id="toggle-airplay">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"></path><polygon points="12 15 17 21 7 21 12 15"></polygon></svg>
+            <span class="control-label">AirPlay</span>
+          </div>
+        </div>
+        
+        <!-- Volume Control -->
+        <div class="volume-control">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="50">
+        </div>
+
+        <!-- Integrated Bluetooth Info -->
+        <div class="modal-info-row" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+          <span class="label">Bluetooth:</span>
+          <span id="cc-bt-device" class="value">None</span>
+        </div>
+      </div>
+
+      <!-- WiFi Modal -->
+      <div id="wifi-modal" class="modal wifi-modal hidden">
+        <div class="modal-header">Wi-Fi Network</div>
+        <div class="modal-content">
+          <div class="modal-info-row">
+            <span class="label">SSID:</span>
+            <span id="wifi-ssid" class="value">Home_Network</span>
+          </div>
+          <div class="modal-info-row">
+            <span class="label">Signal:</span>
+            <span id="wifi-signal" class="value">98%</span>
+          </div>
+          <div class="modal-info-row">
+            <span class="label">Download:</span>
+            <span id="wifi-down" class="value">-- Mbps</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bluetooth Modal -->
+      <div id="bluetooth-modal" class="modal bluetooth-modal hidden">
+        <div class="modal-header">Bluetooth Devices</div>
+        <div class="modal-content">
+          <div class="device-list" id="bt-device-list">
+            <div class="device-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 11v5"></path><path d="M9 17v1"></path><path d="M15 17v1"></path><path d="M19 13.5v-2a7 7 0 0 0-14 0v2"></path><path d="M21 15a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              <span>AirPods Pro</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Battery Modal -->
+      <div id="battery-modal" class="modal battery-modal hidden">
+        <div class="modal-header">Battery Health</div>
+        <div class="modal-content">
+          <div class="modal-info-row">
+            <span class="label">Status:</span>
+            <span id="battery-status" class="value">Power Adapter</span>
+          </div>
+          <div class="modal-info-row">
+            <span class="label">Charge:</span>
+            <span id="battery-charge-large" class="value">--%</span>
+          </div>
         </div>
       </div>
     </div>
@@ -192,38 +280,9 @@
             </div>
           </div>
 
-          <!-- Timer Activity -->
-          <div id="timer-activity" class="activity timer-activity hidden">
-            <div class="activity-content">
-              <div class="timer-display">
-                <div class="timer-circle">
-                  <svg class="timer-svg" viewBox="0 0 100 100">
-                    <circle class="timer-bg" cx="50" cy="50" r="45"></circle>
-                    <circle id="timer-progress" class="timer-progress" cx="50" cy="50" r="45"></circle>
-                  </svg>
-                  <div class="timer-text" id="timer-text">00:00</div>
-                </div>
-              </div>
-              <button id="timer-pause" class="btn btn-secondary">Pause</button>
-            </div>
-          </div>
 
-          <!-- Bluetooth Activity -->
-          <div id="bluetooth-activity" class="activity bluetooth-activity hidden">
-            <div class="activity-content">
-              <div class="bluetooth-icon">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"></polyline>
-                </svg>
-              </div>
-              <div class="bluetooth-info">
-                <div class="bluetooth-name" id="bluetooth-name">Device Name</div>
-                <div class="bluetooth-battery">
-                  <span id="bluetooth-battery-left">--</span>% • <span id="bluetooth-battery-right">--</span>%
-                </div>
-              </div>
-            </div>
-          </div>
+
+
 
         </div>
 

@@ -7,8 +7,16 @@ Cross-platform system resource monitoring
 import psutil
 import platform
 import logging
+import math
 
 logger = logging.getLogger(__name__)
+
+# Windows audio control
+try:
+    from comtypes import CLSCTX_ALL
+    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+except ImportError:
+    pass
 
 
 class SystemMonitor:
@@ -46,6 +54,28 @@ class SystemMonitor:
         logger.info("🐧 Initializing Linux monitoring")
         # Future: Add Linux-specific features
         pass
+
+    def set_volume(self, value):
+        """Set system master volume (0-100)"""
+        if self.platform != "Windows":
+            return False
+
+        try:
+            val = float(value) / 100.0
+            devices = AudioUtilities.GetSpeakers()
+            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+            volume = interface.QueryInterface(IAudioEndpointVolume)
+
+            # Clamp value between 0 and 1
+            val = max(0.0, min(1.0, val))
+
+            # The set_master_volume_level expects decibels, or we can use set_master_volume_level_scalar
+            volume.SetMasterVolumeLevelScalar(val, None)
+            logger.info(f"🔊 System volume set to {value}%")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Error setting volume: {e}")
+            return False
 
     def get_cpu_percent(self):
         """

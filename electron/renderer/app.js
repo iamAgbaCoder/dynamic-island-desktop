@@ -45,6 +45,11 @@ const state = {
     },
     timer: { isActive: false, remaining: 0 },
     bluetooth: { isActive: false, deviceName: '', battery: null }
+  },
+  ui: {
+    navbarState: 'greeting', // 'greeting' or 'activity'
+    greetingText: null,
+    greetingTimeout: null
   }
 };
 
@@ -62,14 +67,23 @@ const elements = {
   controlPanelBtn: document.getElementById('control-panel-btn'),
   wifiBtn: document.getElementById('wifi-btn'),
   bluetoothBtn: document.getElementById('bluetooth-btn'),
-  batteryIndicator: document.getElementById('battery-indicator'),
+  batteryBtn: document.getElementById('battery-btn'),
   batteryFill: document.getElementById('battery-fill'),
   batteryPercent: document.getElementById('battery-percent'),
+  weatherBtn: document.getElementById('weather-btn'),
+  weatherTemp: document.getElementById('weather-temp'),
   dateDisplay: document.getElementById('date-display'),
   timeDisplay: document.getElementById('time-display'),
   liveIndicator: document.getElementById('live-indicator'),
-  mediaWave: document.getElementById('media-wave'),
+  mediaDisco: document.getElementById('media-disco'),
+  statusDot: document.getElementById('status-dot'),
   statusText: document.getElementById('status-text'),
+  
+  // Modal Fields
+  wifiSSID: document.getElementById('wifi-ssid'),
+  wifiSignal: document.getElementById('wifi-signal'),
+  batteryStatus: document.getElementById('battery-status'),
+  batteryChargeLarge: document.getElementById('battery-charge-large'),
   
   // Expanded view
   greetingText: document.getElementById('greeting-text'),
@@ -97,11 +111,12 @@ const elements = {
   bluetoothBatteryLeft: document.getElementById('bluetooth-battery-left'),
   bluetoothBatteryRight: document.getElementById('bluetooth-battery-right'),
   
-  // System stats
-  cpuValue: document.getElementById('cpu-value'),
-  ramValue: document.getElementById('ram-value'),
   networkIcon: document.getElementById('network-icon'),
-  networkValue: document.getElementById('network-value')
+  networkValue: document.getElementById('network-value'),
+  
+  // Volume
+  volumeSlider: document.getElementById('volume-slider'),
+  ccBTDevice: document.getElementById('cc-bt-device')
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -124,6 +139,9 @@ async function toggleIsland() {
   // Update data attribute for CSS
   elements.island.dataset.state = isExpanded ? 'expanded' : 'collapsed';
   
+  // Close any open modals when island state changes
+  document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+  
   if (isExpanded) {
     // EXPAND ANIMATION
     const expandedWidth = 400;
@@ -143,11 +161,11 @@ async function toggleIsland() {
     await animator.fadeOut(elements.collapsedView, 0.2);
     
     // 4. Fade in expanded view
-    await animator.fadeIn(elements.expandedView, 0.3);
+    await animator.fadeIn(elements.expandedView, 0.2);
     
     // 5. Stagger animate children
     const children = elements.expandedView.querySelectorAll('.expanded-header, .live-activities, .stats-grid');
-    animator.stagger(children, { opacity: 1, y: 0 }, 0.05);
+    animator.stagger(children, { opacity: 1, y: 0 }, 0.04);
     
     // Update window size via IPC
     if (window.electron?.window) {
@@ -160,7 +178,7 @@ async function toggleIsland() {
     const collapsedHeight = 32;
     
     // 1. Fade out expanded view
-    await animator.fadeOut(elements.expandedView, 0.2);
+    await animator.fadeOut(elements.expandedView, 0.15);
     
     // 2. Morph island size
     await animator.morphIsland(elements.island, {
@@ -172,7 +190,7 @@ async function toggleIsland() {
     elements.expandedView.classList.add('hidden');
     
     // 4. Fade in collapsed view
-    await animator.fadeIn(elements.collapsedView, 0.2);
+    await animator.fadeIn(elements.collapsedView, 0.15);
     
     // Update window size via IPC
     if (window.electron?.window) {
@@ -198,7 +216,9 @@ function updateSystemData(data) {
     state.system.battery.isCharging = data.isCharging || false;
     
     // Update battery percentage
-    elements.batteryPercent.textContent = `${Math.round(data.battery)}%`;
+    if (elements.batteryPercent) elements.batteryPercent.textContent = `${Math.round(data.battery)}%`;
+    if (elements.batteryChargeLarge) elements.batteryChargeLarge.textContent = `${Math.round(data.battery)}%`;
+    if (elements.batteryStatus) elements.batteryStatus.textContent = data.isCharging ? 'Charging' : 'On Battery';
     
     // Update battery fill width (SVG)
     const fillWidth = (data.battery / 100) * 16; // 16 is max width
@@ -207,40 +227,45 @@ function updateSystemData(data) {
     }
     
     // Update battery indicator classes
-    elements.batteryIndicator.classList.toggle('charging', data.isCharging);
-    elements.batteryIndicator.classList.toggle('low', data.battery < 20);
+    const batteryBtn = document.getElementById('battery-btn');
+    batteryBtn?.classList.toggle('charging', data.isCharging);
+    batteryBtn?.classList.toggle('low', data.battery < 20);
   }
   
   // CPU
   if (data.cpu !== undefined) {
     state.system.cpu = data.cpu;
-    elements.cpuValue.textContent = `${Math.round(data.cpu)}%`;
-    elements.cpuValue.style.color = colorFromPercentage(data.cpu);
+    if (elements.cpuValue) {
+      elements.cpuValue.textContent = `${Math.round(data.cpu)}%`;
+      elements.cpuValue.style.color = colorFromPercentage(data.cpu);
+    }
   }
   
   // RAM
   if (data.ram !== undefined) {
     state.system.ram = data.ram;
-    elements.ramValue.textContent = `${Math.round(data.ram)}%`;
-    elements.ramValue.style.color = colorFromPercentage(data.ram);
+    if (elements.ramValue) {
+      elements.ramValue.textContent = `${Math.round(data.ram)}%`;
+      elements.ramValue.style.color = colorFromPercentage(data.ram);
+    }
   }
   
   // Network / WiFi
   if (data.network) {
-    state.system.network.status = data.network;
-    const isConnected = data.network === 'connected';
+    const isConnected = data.network === 'connected' || (typeof data.network === 'object' && data.network.connected);
+    state.system.network.status = isConnected ? 'connected' : 'disconnected';
     
+    // Update WiFi modal fields
+    if (elements.wifiSSID) elements.wifiSSID.textContent = isConnected ? 'Dynamic_WiFi' : 'Disconnected';
+    if (elements.wifiSignal) elements.wifiSignal.textContent = isConnected ? '98%' : '--';
+
     // Update WiFi indicator in collapsed view
-    if (elements.wifiIndicator) {
-      elements.wifiIndicator.classList.toggle('disconnected', !isConnected);
-      elements.wifiIndicator.classList.remove('weak');
+    if (elements.wifiBtn) {
+      elements.wifiBtn.classList.toggle('disconnected', !isConnected);
     }
     
     // Update network status in expanded view
-    elements.networkValue.textContent = isConnected ? 'Connected' : 'Offline';
-    elements.networkIcon.innerHTML = isConnected 
-      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>'
-      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path><path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>';
+    if (elements.networkValue) elements.networkValue.textContent = isConnected ? 'Connected' : 'Offline';
   }
   
   updateCollapsedStatus();
@@ -251,23 +276,40 @@ function updateSystemData(data) {
  */
 function updateCollapsedStatus() {
   const { media, timer, bluetooth } = state.liveActivities;
+  const { isConnected } = state.connection;
   const isMusicPlaying = media.isActive && media.isPlaying;
   
-  // Update Media Wave
-  if (elements.mediaWave) {
-    elements.mediaWave.style.display = isMusicPlaying ? 'flex' : 'none';
+  // Update Visual Indicators
+  if (elements.mediaDisco) {
+    elements.mediaDisco.classList.toggle('hidden', !isMusicPlaying);
+  }
+  
+  if (elements.statusDot) {
+    elements.statusDot.classList.toggle('disconnected', !isConnected);
   }
 
   // Update Status Text
   if (elements.statusText) {
     if (isMusicPlaying) {
-      elements.statusText.textContent = `${media.title} • ${media.artist}`;
-      elements.statusText.classList.remove('hidden');
-    } else if (timer.isActive) {
-      elements.statusText.textContent = `Timer: ${formatTime(timer.remaining)}`;
-      elements.statusText.classList.remove('hidden');
+      // Show Music Info - Faster reveal
+      if (media.title && media.title !== 'Now Playing' && media.title !== 'System Audio') {
+        elements.statusText.textContent = `${media.title} • ${media.artist}`;
+        elements.statusText.style.color = '#ffffff';
+      } else {
+        elements.statusText.textContent = 'Now Playing';
+        elements.statusText.style.color = '#ffffff';
+      }
+      
+      // Clear greeting text if music is playing
+      state.ui.navbarState = 'activity';
     } else {
-      elements.statusText.classList.add('hidden');
+      // Show Greeting only if no music
+      if (!state.ui.greetingText) {
+        state.ui.greetingText = getGreeting();
+      }
+      elements.statusText.textContent = state.ui.greetingText;
+      elements.statusText.style.color = 'rgba(255,255,255,0.85)';
+      state.ui.navbarState = 'greeting';
     }
   }
 }
@@ -292,19 +334,23 @@ function colorFromPercentage(percent) {
 function updateMediaActivity(data) {
   state.liveActivities.media = { ...state.liveActivities.media, ...data };
   
-  const { isActive, isPlaying, title, artist, progress, duration } = state.liveActivities.media;
-  
-  if (isActive) {
+  if (isActive && isPlaying) {
     elements.mediaActivity.classList.remove('hidden');
     elements.mediaTitle.textContent = title || 'Unknown Track';
     elements.mediaArtist.textContent = artist || 'Unknown Artist';
     
+    // Log currently playing music
+    if (state.liveActivities.media.title !== title) {
+      log.info(`🎵 Now Playing: ${title} by ${artist}`);
+    }
+
     // Update artwork
     if (elements.mediaArtworkImg) {
       if (data.artworkUrl) {
         elements.mediaArtworkImg.src = data.artworkUrl;
         elements.mediaArtworkImg.classList.add('loaded');
       } else {
+        elements.mediaArtworkImg.src = ''; // Clear if none
         elements.mediaArtworkImg.classList.remove('loaded');
       }
     }
@@ -334,22 +380,6 @@ function updateMediaActivity(data) {
  */
 function updateTimerActivity(data) {
   state.liveActivities.timer = { ...state.liveActivities.timer, ...data };
-  
-  const { isActive, remaining, total } = state.liveActivities.timer;
-  
-  if (isActive) {
-    elements.timerActivity.classList.remove('hidden');
-    elements.timerText.textContent = formatTime(remaining);
-    
-    // Update circular progress
-    const circumference = 2 * Math.PI * 45; // radius = 45
-    const progress = (remaining / total) * circumference;
-    elements.timerProgress.style.strokeDashoffset = circumference - progress;
-    
-  } else {
-    elements.timerActivity.classList.add('hidden');
-  }
-  
   updateCollapsedStatus();
 }
 
@@ -366,8 +396,15 @@ function updateBluetoothActivity(data) {
     elements.bluetoothName.textContent = deviceName;
     elements.bluetoothBatteryLeft.textContent = batteryLeft !== null ? batteryLeft : '--';
     elements.bluetoothBatteryRight.textContent = batteryRight !== null ? batteryRight : '--';
+    
+    if (elements.ccBTDevice) {
+      elements.ccBTDevice.textContent = deviceName;
+    }
   } else {
     elements.bluetoothActivity.classList.add('hidden');
+    if (elements.ccBTDevice) {
+      elements.ccBTDevice.textContent = 'None';
+    }
   }
   
   updateCollapsedStatus();
@@ -611,43 +648,93 @@ function setupEventListeners() {
     });
   });
 
+  if (elements.statusText) {
+    elements.statusText.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!state.island.isExpanded) toggleIsland();
+    });
+  }
+
   // Modal Buttons
   if (elements.controlPanelBtn) {
     elements.controlPanelBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       toggleModal('control-center-modal');
     });
   }
   
   if (elements.wifiBtn) {
     elements.wifiBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       toggleModal('wifi-modal');
     });
   }
 
   if (elements.bluetoothBtn) {
     elements.bluetoothBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       toggleModal('bluetooth-modal');
+    });
+  }
+
+  if (elements.batteryBtn) {
+    elements.batteryBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleModal('battery-modal');
+    });
+  }
+
+  if (elements.weatherBtn) {
+    elements.weatherBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      log.info('Weather clicked');
+      updateWeather();
+    });
+  }
+
+  // Volume Slider
+  if (elements.volumeSlider) {
+    elements.volumeSlider.addEventListener('input', (e) => {
+      const volume = e.target.value;
+      sendCommand('system_control', 'volume', { value: volume });
     });
   }
 }
 
 /**
- * Toggle a modal visibility
+ * Toggle a modal visibility with sleek transition
  */
-function toggleModal(id) {
+async function toggleModal(id) {
   const modal = document.getElementById(id);
   if (!modal) return;
   
-  const isHidden = modal.classList.contains('hidden');
+  // If island is expanded, collapse it first then show modal
+  if (state.island.isExpanded) {
+    await toggleIsland();
+  }
   
-  // Close other modals
-  document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+  const isCurrentlyHidden = modal.classList.contains('hidden');
   
-  if (isHidden) {
+  // Close all other modals immediately
+  document.querySelectorAll('.modal').forEach(m => {
+    if (m.id !== id) {
+      m.classList.add('hidden');
+      gsap.killTweensOf(m);
+    }
+  });
+  
+  if (isCurrentlyHidden) {
     modal.classList.remove('hidden');
-    animator.fadeIn(modal, 0.2);
+    hapticFeedback(elements.island, 'light');
+    gsap.fromTo(modal, 
+      { opacity: 0, scale: 0.9, y: 10, transformPerspective: 1000, rotationX: -10 }, 
+      { opacity: 1, scale: 1, y: 0, rotationX: 0, duration: 0.4, ease: 'power4.out' }
+    );
   } else {
-    modal.classList.add('hidden');
+    gsap.to(modal, { 
+      opacity: 0, scale: 0.9, y: 10, duration: 0.2, ease: 'power2.in',
+      onComplete: () => modal.classList.add('hidden')
+    });
   }
 }
 
@@ -708,8 +795,10 @@ async function init() {
   // Set greeting
   elements.greetingText.textContent = getGreeting();
   
-  // Start clock
+  // Start clock and weather
   startClock();
+  updateWeather();
+  setInterval(updateWeather, 600000); // Update every 10 mins
   
   // Setup event listeners
   setupEventListeners();
@@ -721,6 +810,18 @@ async function init() {
   animator.fadeIn(elements.island, 0.6);
   
   log.success('Dynamic Island initialized');
+}
+
+/**
+ * Update Weather Data
+ */
+async function updateWeather() {
+  // Mock weather update - could integrate OpenWeatherMap here
+  const temps = ['22°', '24°', '19°', '21°'];
+  const randomTemp = temps[Math.floor(Math.random() * temps.length)];
+  if (elements.weatherTemp) {
+    elements.weatherTemp.textContent = randomTemp;
+  }
 }
 
 // Start when DOM is ready
