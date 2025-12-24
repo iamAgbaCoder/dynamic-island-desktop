@@ -107,9 +107,10 @@ function createWindow() {
   // Prevent window from being moved by default
   mainWindow.setMovable(false);
 
-  // Make window ignore mouse events in transparent areas
-  if (platform.isWindows) {
-    mainWindow.setIgnoreMouseEvents(false);
+  // Make window ignore mouse events in transparent areas by default
+  // This allows clicking through the transparent parts to apps behind
+  if (platform.isWindows || platform.isMac) {
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
   }
 
   // Handle window closed
@@ -226,6 +227,13 @@ ipcMain.handle('window:minimize', () => {
 ipcMain.handle('window:restore', () => {
   if (!mainWindow) return;
   mainWindow.show();
+  return { success: true };
+});
+
+// Toggle window ignore mouse events (called from renderer on hover)
+ipcMain.handle('window:setIgnoreMouseEvents', (event, ignore, options) => {
+  if (!mainWindow) return;
+  mainWindow.setIgnoreMouseEvents(ignore, options || { forward: true });
   return { success: true };
 });
 

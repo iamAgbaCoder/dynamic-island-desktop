@@ -105,6 +105,14 @@
             <span id="weather-temp" class="weather-temp">22°</span>
           </div>
           
+          <!-- Notification Icon -->
+          <div id="notification-btn" class="status-icon" title="Notifications">
+             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+               <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+             </svg>
+          </div>
+
           <!-- Clock -->
           <div id="clock-container" class="status-icon clock-icon">
             <span id="date-display" class="date-display">---</span>
@@ -200,6 +208,21 @@
           <div class="modal-info-row">
             <span class="label">Charge:</span>
             <span id="battery-charge-large" class="value">--%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notification Modal -->
+      <div id="notification-modal" class="modal notification-modal hidden">
+        <div class="modal-header">Notifications</div>
+        <div id="notification-list" class="modal-content">
+          <!-- Notification items injected by JS -->
+          <div class="notification-item">
+            <div class="notification-icon">🔔</div>
+            <div class="notification-content">
+              <div class="notification-title">System Update</div>
+              <div class="notification-body">A new update is available.</div>
+            </div>
           </div>
         </div>
       </div>

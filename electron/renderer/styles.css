@@ -114,20 +114,39 @@ button, input, a, .status-icon, .os-logo, .active-app-name, .live-indicator {
     box-shadow 0.3s ease;
 }
 
-/* Collapsed state (default) */
-.island[data-state="collapsed"] {
-  width: 680px;
+/* Idle state (minimal pill when not focused) */
+.island[data-state="idle"] {
+  width: 180px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+}
+
+/* Music active collapsed state */
+.island[data-state="music"] {
+  width: auto;
+  min-width: 200px;
+  max-width: 400px;
   height: 32px;
   border-radius: var(--radius-pill);
 }
 
+/* Collapsed state (navbar mode) - Now flexible */
+.island[data-state="collapsed"] {
+  width: auto;
+  min-width: 180px;
+  max-width: 800px; /* Allow expansion */
+  height: 32px;
+  border-radius: var(--radius-pill);
+  padding: 0 4px;
+}
+
 /* Expanded state */
 .island[data-state="expanded"] {
-  width: 380px; /* Reduced from 420px */
+  width: 380px;
   height: auto;
-  min-height: 280px; /* More compact */
+  min-height: 280px;
   cursor: default;
-  border-radius: 36px;
+  border-radius: 40px;
   padding: 10px;
 }
 
@@ -169,12 +188,31 @@ button, input, a, .status-icon, .os-logo, .active-app-name, .live-indicator {
 .collapsed-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center; /* Center content */
   width: 100%;
   height: 100%;
-  padding: 0 16px;
+  padding: 0 12px;
   gap: 12px;
+  transition: all 0.3s ease;
 }
+
+/* Hide content when idle */
+.island[data-state="idle"] .nav-section-left,
+.island[data-state="idle"] .nav-section-right,
+.island[data-state="idle"] .status-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  pointer-events: none;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+}
+
+.island[data-state="idle"] .live-indicator {
+  padding: 0;
+}
+
 
 /* Navigation Sections */
 .nav-section-left,
@@ -603,30 +641,36 @@ button, input, a, .status-icon, .os-logo, .active-app-name, .live-indicator {
 }
 
 .control-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   border: none;
   border-radius: 50%;
-  color: var(--color-text-primary);
+  color: #ffffff;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .control-btn:hover {
   background: rgba(255, 255, 255, 0.15);
-  transform: scale(1.1);
-}
-
-.control-btn:active {
-  transform: scale(0.95);
+  transform: scale(1.08);
 }
 
 .control-btn svg {
   color: #ffffff !important;
+  fill: #ffffff;
+}
+
+.control-btn-primary {
+  background: var(--color-accent) !important;
+  box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3);
+}
+
+.control-btn-primary:hover {
+  background: #0070e0 !important;
 }
 
 /* Volume Slider */
@@ -942,12 +986,79 @@ button, input, a, .status-icon, .os-logo, .active-app-name, .live-indicator {
 }
 
 .modal-info-row .label {
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .modal-info-row .value {
-  color: var(--color-text-primary);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Notification Modal */
+.notification-modal {
+  width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+}
+
+.notification-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.02);
+}
+
+.notification-icon {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-content {
+  flex: 1;
+}
+
+.notification-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.notification-body {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 2px;
+}
+
+/* Notification Isle (Expanded Preview) */
+.notification-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.notification-preview .preview-text {
+  flex: 1;
+}
+
+.notification-preview .preview-app {
+  font-size: 11px;
   font-weight: 600;
+  color: var(--color-accent);
+  text-transform: uppercase;
 }
 
 .device-list {

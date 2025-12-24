@@ -131,13 +131,9 @@ class MediaMonitor:
                 )
                 self.last_track_info = track_key
         else:
-            # Future: Get real media info based on platform
-            if self.platform == "Windows":
-                return await self._get_windows_media_info()
-            elif self.platform == "Darwin":
-                return await self._get_macos_media_info()
-            elif self.platform == "Linux":
-                return await self._get_linux_media_info()
+            self.last_track_info = None
+
+        return data
 
     async def _get_mock_media_info(self):
         """

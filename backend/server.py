@@ -189,25 +189,39 @@ class DynamicIslandServer:
         Implements smart change detection to reduce unnecessary updates
         """
         logger.info("🔄 Starting broadcast loop...")
-        update_interval = 1.0  # seconds
+        update_interval = 0.5  # seconds for smoother UI
+        notif_counter = 0
 
         while self.is_running:
             try:
                 if self.clients:
-                    # 1. System Info (always send)
+                    # 1. System Info
                     sys_data = await self.get_system_data()
                     await self.broadcast(sys_data)
 
-                    # 2. Media Info (with change detection)
+                    # 2. Media Info (Broadcasting frequently for progress bar)
                     media_data = await self.media_monitor.get_media_info()
-                    if media_data != self.last_state["media"]:
-                        await self.broadcast(media_data)
-                        self.last_state["media"] = media_data
+                    await self.broadcast(media_data)
 
-                    # 3. Window Info (with change detection)
+                    # 3. Window Info
                     window_info = self.window_monitor.get_active_window()
                     window_data = {"type": "window", "data": window_info}
                     await self.broadcast(window_data)
+
+                    # 4. Mock notification (every 30s)
+                    notif_counter += 1
+                    if notif_counter >= 60:  # 30 seconds at 0.5s interval
+                        notif_counter = 0
+                        await self.broadcast(
+                            {
+                                "type": "notification",
+                                "data": {
+                                    "app": "System",
+                                    "title": "Security Update",
+                                    "body": "Your system is up to date.",
+                                },
+                            }
+                        )
 
                 # Wait before next update
                 await asyncio.sleep(update_interval)

@@ -83,8 +83,8 @@ class SystemMonitor:
         Returns: float (0-100)
         """
         try:
-            # interval=1 means measure over 1 second
-            cpu_percent = psutil.cpu_percent(interval=1)
+            # interval=None means non-blocking delta since last call
+            cpu_percent = psutil.cpu_percent(interval=None)
             return round(cpu_percent, 1)
         except Exception as e:
             logger.error(f"❌ Error getting CPU percent: {e}")

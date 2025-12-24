@@ -16,10 +16,12 @@ import {
    ═══════════════════════════════════════════════════════════ */
 const state = {
   island: {
+    state: 'collapsed', // 'idle', 'collapsed', 'expanded'
     isExpanded: false,
     isAnimating: false,
     currentWidth: 680,
-    currentHeight: 32
+    currentHeight: 32,
+    lastInteraction: Date.now()
   },
   connection: {
     isConnected: false,
@@ -132,13 +134,13 @@ async function toggleIsland() {
   state.island.isAnimating = true;
   state.island.isExpanded = !state.island.isExpanded;
   
+  // Update state
   const isExpanded = state.island.isExpanded;
-  
-  log.info(`Island ${isExpanded ? 'expanding' : 'collapsing'}...`);
-  
-  // Update data attribute for CSS
   elements.island.dataset.state = isExpanded ? 'expanded' : 'collapsed';
   
+  if (isExpanded) captureMouse();
+  else releaseMouse();
+
   // Close any open modals when island state changes
   document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
   
@@ -199,8 +201,39 @@ async function toggleIsland() {
   }
   
   state.island.isAnimating = false;
-  log.success(`Island ${isExpanded ? 'expanded' : 'collapsed'}`);
+  
+  // Sync window size after transition
+  updateWindowSize();
 }
+
+/**
+ * Automatically sync Electron window size with island dimensions
+ */
+function updateWindowSize() {
+  if (!window.electron?.window) return;
+  
+  const rect = elements.island.getBoundingClientRect();
+  const width = Math.ceil(rect.width);
+  const height = Math.ceil(rect.height);
+  
+  // Don't resize if minimized
+  if (width < 10) return;
+
+  // If a modal is open, we need more height
+  const openModals = Array.from(document.querySelectorAll('.modal')).filter(m => !m.classList.contains('hidden'));
+  const finalHeight = openModals.length > 0 ? 450 : height + 20;
+
+  window.electron.window.resize(width + 20, finalHeight, true);
+}
+
+// Watch for manual size changes via ResizeObserver
+const islandObserver = new ResizeObserver(debounce(() => {
+  if (!state.island.isAnimating) {
+    updateWindowSize();
+  }
+}, 50));
+
+islandObserver.observe(elements.island);
 
 /* ═══════════════════════════════════════════════════════════
    SYSTEM DATA UPDATES
@@ -292,15 +325,13 @@ function updateCollapsedStatus() {
   if (elements.statusText) {
     if (isMusicPlaying) {
       // Show Music Info - Faster reveal
-      if (media.title && media.title !== 'Now Playing' && media.title !== 'System Audio') {
+      elements.island.dataset.state = 'music';
+      if (media.title && media.title !== 'Now Playing' && media.title !== 'System Audio' && media.title !== 'Playing') {
         elements.statusText.textContent = `${media.title} • ${media.artist}`;
-        elements.statusText.style.color = '#ffffff';
       } else {
         elements.statusText.textContent = 'Now Playing';
-        elements.statusText.style.color = '#ffffff';
       }
-      
-      // Clear greeting text if music is playing
+      elements.statusText.style.color = '#ffffff';
       state.ui.navbarState = 'activity';
     } else {
       // Show Greeting only if no music
@@ -310,6 +341,11 @@ function updateCollapsedStatus() {
       elements.statusText.textContent = state.ui.greetingText;
       elements.statusText.style.color = 'rgba(255,255,255,0.85)';
       state.ui.navbarState = 'greeting';
+      
+      // If we were in music state, go back to collapsed or idle
+      if (elements.island.dataset.state === 'music') {
+        elements.island.dataset.state = 'collapsed';
+      }
     }
   }
 }
@@ -333,43 +369,46 @@ function colorFromPercentage(percent) {
  */
 function updateMediaActivity(data) {
   state.liveActivities.media = { ...state.liveActivities.media, ...data };
+  const media = state.liveActivities.media;
   
-  if (isActive && isPlaying) {
+  if (media.isActive) {
     elements.mediaActivity.classList.remove('hidden');
-    elements.mediaTitle.textContent = title || 'Unknown Track';
-    elements.mediaArtist.textContent = artist || 'Unknown Artist';
+    elements.mediaTitle.textContent = media.title || 'No media playing';
+    elements.mediaArtist.textContent = media.artist || '--';
     
     // Log currently playing music
-    if (state.liveActivities.media.title !== title) {
-      log.info(`🎵 Now Playing: ${title} by ${artist}`);
+    if (media.isPlaying && state.liveActivities.media.title !== media.title) {
+      log.info(`🎵 Now Playing: ${media.title} by ${media.artist}`);
     }
 
     // Update artwork
     if (elements.mediaArtworkImg) {
-      if (data.artworkUrl) {
-        elements.mediaArtworkImg.src = data.artworkUrl;
+      if (media.artworkUrl) {
+        elements.mediaArtworkImg.src = media.artworkUrl;
         elements.mediaArtworkImg.classList.add('loaded');
       } else {
-        elements.mediaArtworkImg.src = ''; // Clear if none
+        elements.mediaArtworkImg.src = '';
         elements.mediaArtworkImg.classList.remove('loaded');
       }
     }
     
     // Update progress
-    if (duration > 0) {
-      const progressPercent = (progress / duration) * 100;
+    if (media.duration > 0) {
+      const progressPercent = (media.progress / media.duration) * 100;
       elements.mediaProgressFill.style.width = `${progressPercent}%`;
-      elements.mediaCurrentTime.textContent = formatTime(progress);
-      elements.mediaDuration.textContent = formatTime(duration);
+      elements.mediaCurrentTime.textContent = formatTime(media.progress);
+      elements.mediaDuration.textContent = formatTime(media.duration);
     }
     
     // Update play/pause icon
-    elements.mediaPlayPause.innerHTML = isPlaying
+    elements.mediaPlayPause.innerHTML = media.isPlaying
       ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>'
       : '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
     
   } else {
     elements.mediaActivity.classList.add('hidden');
+    elements.mediaTitle.textContent = 'No media playing';
+    elements.mediaArtist.textContent = '--';
   }
   
   updateCollapsedStatus();
@@ -516,7 +555,24 @@ function handleBackendMessage(message) {
  */
 function handleNotification(data) {
   log.info('Notification received:', data);
-  // TODO: Implement notification UI
+  
+  // Pulse island for feedback
+  animator.pulse(elements.island, 1.05, 0.4);
+
+  // Add to modal list
+  const list = document.getElementById('notification-list');
+  if (list) {
+    const item = document.createElement('div');
+    item.className = 'notification-item';
+    item.innerHTML = `
+      <div class="notification-icon">🔔</div>
+      <div class="notification-content">
+        <div class="notification-title">${data.title}</div>
+        <div class="notification-body">${data.body || ''}</div>
+      </div>
+    `;
+    list.prepend(item);
+  }
 }
 
 /**
@@ -699,6 +755,71 @@ function setupEventListeners() {
       sendCommand('system_control', 'volume', { value: volume });
     });
   }
+
+  // Notification Icon
+  const notifBtn = document.getElementById('notification-btn');
+  notifBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleModal('notification-modal');
+  });
+
+  // Mouse Interactivity Helpers
+  const captureArea = (el) => {
+    el.addEventListener('mouseenter', captureMouse);
+    el.addEventListener('mouseleave', () => {
+      if (!state.island.isExpanded) releaseMouse();
+    });
+  };
+
+  // Capture mouse for all interactive elements
+  const overlays = document.getElementById('component-overlays');
+  if (overlays) {
+    overlays.addEventListener('mouseenter', captureMouse);
+    overlays.addEventListener('mouseleave', () => {
+      if (!state.island.isExpanded) releaseMouse();
+    });
+  }
+
+  elements.island.addEventListener('mouseenter', () => {
+    state.island.lastInteraction = Date.now();
+    if (elements.island.dataset.state === 'idle') {
+      elements.island.dataset.state = 'collapsed';
+    }
+    captureMouse();
+  });
+
+  elements.island.addEventListener('mouseleave', () => {
+    if (!state.island.isExpanded) {
+      releaseMouse();
+    }
+  });
+
+  // Idle check
+  setInterval(() => {
+    if (!state.island.isExpanded && 
+        Date.now() - state.island.lastInteraction > 5000 && 
+        elements.island.dataset.state === 'collapsed') {
+      elements.island.dataset.state = 'idle';
+    }
+  }, 1000);
+}
+
+/**
+ * Capture mouse events in Electron
+ */
+function captureMouse() {
+  window.electron?.window.setIgnoreMouseEvents(false);
+}
+
+/**
+ * Release mouse events in Electron accurately
+ */
+function releaseMouse() {
+  // Only release if no modals are open
+  const openModals = Array.from(document.querySelectorAll('.modal')).filter(m => !m.classList.contains('hidden'));
+  if (openModals.length === 0) {
+    window.electron?.window.setIgnoreMouseEvents(true, { forward: true });
+  }
 }
 
 /**
@@ -726,6 +847,11 @@ async function toggleModal(id) {
   if (isCurrentlyHidden) {
     modal.classList.remove('hidden');
     hapticFeedback(elements.island, 'light');
+    captureMouse(); // Capture on modal open
+    
+    // Expand window to fit modal
+    updateWindowSize(); 
+    
     gsap.fromTo(modal, 
       { opacity: 0, scale: 0.9, y: 10, transformPerspective: 1000, rotationX: -10 }, 
       { opacity: 1, scale: 1, y: 0, rotationX: 0, duration: 0.4, ease: 'power4.out' }
@@ -733,7 +859,11 @@ async function toggleModal(id) {
   } else {
     gsap.to(modal, { 
       opacity: 0, scale: 0.9, y: 10, duration: 0.2, ease: 'power2.in',
-      onComplete: () => modal.classList.add('hidden')
+      onComplete: () => {
+        modal.classList.add('hidden');
+        releaseMouse(); // Release on modal close
+        updateWindowSize(); // Shrink window back
+      }
     });
   }
 }

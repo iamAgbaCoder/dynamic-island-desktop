@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld('electron', {
     },
     async restore() {
       return await ipcRenderer.invoke('window:restore');
+    },
+    async setIgnoreMouseEvents(ignore, options) {
+      return await ipcRenderer.invoke('window:setIgnoreMouseEvents', ignore, options);
     }
   },
 
